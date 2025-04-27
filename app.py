@@ -18,25 +18,39 @@ app = FastAPI(title="Speech Recognition API")
 asr = ASRExecutor()
 text_executor = TextExecutor()
 
-def split_text(text: str, max_length: int = 500) -> List[str]:
+def split_text(text: str, max_length: int = 300) -> List[str]:
     """
-    将长文本分割成较短的段落
+    将长文本分割成较短的段落，使用更保守的分段策略
     """
-    # 按标点符号分割
-    segments = re.split(r'([。！？])', text)
+    # 按多种标点符号分割
+    segments = re.split(r'([。！？，；：])', text)
     result = []
     current_segment = ""
     
     for segment in segments:
-        if len(current_segment) + len(segment) <= max_length:
-            current_segment += segment
-        else:
+        # 如果当前段加上新段超过最大长度，就保存当前段并开始新段
+        if len(current_segment) + len(segment) > max_length:
             if current_segment:
-                result.append(current_segment)
+                result.append(current_segment.strip())
             current_segment = segment
+        else:
+            current_segment += segment
+            
+        # 如果当前段已经达到最大长度，就保存它
+        if len(current_segment) >= max_length:
+            result.append(current_segment.strip())
+            current_segment = ""
     
+    # 添加最后一个段
     if current_segment:
-        result.append(current_segment)
+        result.append(current_segment.strip())
+    
+    # 过滤掉空段
+    result = [s for s in result if s]
+    
+    logger.info(f"Split text into {len(result)} segments")
+    for i, seg in enumerate(result):
+        logger.info(f"Segment {i+1} length: {len(seg)}")
     
     return result
 
@@ -62,22 +76,33 @@ def add_punctuation(text: str) -> str:
     """
     为文本添加标点符号，处理长文本
     """
+    if not text.strip():
+        return text
+        
     # 分割文本
     segments = split_text(text)
-    logger.info(f"Split text into {len(segments)} segments")
+    if not segments:
+        return text
+        
+    logger.info(f"Processing {len(segments)} segments")
     
     # 对每段分别添加标点
     punctuated_segments = []
-    for segment in segments:
+    for i, segment in enumerate(segments):
         try:
+            logger.info(f"Processing segment {i+1}/{len(segments)}: {segment[:50]}...")
             punctuated = text_executor(text=segment)
             punctuated_segments.append(punctuated)
+            logger.info(f"Successfully processed segment {i+1}")
         except Exception as e:
-            logger.error(f"Failed to add punctuation to segment: {str(e)}")
+            logger.error(f"Failed to add punctuation to segment {i+1}: {str(e)}")
+            logger.error(f"Segment content: {segment}")
             punctuated_segments.append(segment)  # 如果失败，使用原始文本
     
     # 合并结果
-    return "".join(punctuated_segments)
+    result = "".join(punctuated_segments)
+    logger.info(f"Final text length: {len(result)}")
+    return result
 
 def create_response(code: int, message: str, data: Any = None) -> Dict:
     """
