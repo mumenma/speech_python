@@ -75,9 +75,9 @@ async def recognize_speech(audio: UploadFile = File(...)):
                 )
             )
 
-        # 执行语音识别
+        # 执行语音识别，设置 force_yes=True 自动处理非标准采样率
         logger.info("Starting speech recognition")
-        result = asr(audio_file=temp_file_path)
+        result = asr(audio_file=temp_file_path, force_yes=True)
         logger.info(f"Recognition result: {result}")
         
         return create_response(
