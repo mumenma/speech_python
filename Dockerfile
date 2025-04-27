@@ -22,6 +22,9 @@ COPY requirements.txt .
 # 安装 Python 依赖
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 安装 CPU 版本的 PaddlePaddle
+RUN pip install --no-cache-dir paddlepaddle==2.5.2
+
 # 复制应用代码
 COPY . .
 
