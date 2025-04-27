@@ -7,9 +7,6 @@ import logging
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 import torch
 import re
-import wave
-import contextlib
-import ffmpeg
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -20,64 +17,6 @@ app = FastAPI(title="Speech Recognition API")
 # 初始化标点符号预测模型
 tokenizer = AutoTokenizer.from_pretrained("bert-base-chinese")
 model = AutoModelForTokenClassification.from_pretrained("bert-base-chinese")
-
-def get_audio_duration(file_path: str) -> float:
-    """
-    获取音频文件的时长（秒）
-    """
-    try:
-        with contextlib.closing(wave.open(file_path, 'r')) as f:
-            frames = f.getnframes()
-            rate = f.getframerate()
-            duration = frames / float(rate)
-            return duration
-    except Exception as e:
-        logger.error(f"Failed to get audio duration: {str(e)}")
-        raise
-
-def split_audio(input_path: str, output_path: str, start_time: float, duration: float = 200.0) -> None:
-    """
-    使用 ffmpeg-python 分割音频文件
-    """
-    try:
-        stream = ffmpeg.input(input_path, ss=start_time, t=duration)
-        stream = ffmpeg.output(stream, output_path, acodec='copy')
-        ffmpeg.run(stream, capture_stdout=True, capture_stderr=True)
-    except ffmpeg.Error as e:
-        logger.error(f"Failed to split audio: {e.stderr.decode()}")
-        raise
-
-def process_long_audio(audio_path: str) -> str:
-    """
-    处理长音频文件，将其分割成多个片段并分别识别
-    """
-    duration = get_audio_duration(audio_path)
-    logger.info(f"Audio duration: {duration} seconds")
-    
-    if duration <= 200.0:
-        return asr_with_subprocess(audio_path)
-    
-    # 创建临时目录存放分割后的音频
-    temp_dir = tempfile.mkdtemp()
-    results = []
-    
-    try:
-        # 每200秒分割一次
-        for i in range(0, int(duration), 200):
-            segment_path = os.path.join(temp_dir, f"segment_{i}.wav")
-            split_audio(audio_path, segment_path, i, 200.0)
-            
-            # 识别当前片段
-            segment_text = asr_with_subprocess(segment_path)
-            results.append(segment_text)
-            
-            # 清理临时文件
-            os.unlink(segment_path)
-    finally:
-        # 清理临时目录
-        os.rmdir(temp_dir)
-    
-    return "".join(results)
 
 def asr_with_subprocess(audio_path: str) -> str:
     """
@@ -199,9 +138,9 @@ async def recognize_speech(audio: UploadFile = File(...)):
                 )
             )
 
-        # 处理音频文件（包括长音频分割）
+        # 执行语音识别
         logger.info("Starting speech recognition")
-        result = process_long_audio(temp_file_path)
+        result = asr_with_subprocess(temp_file_path)
         logger.info(f"Recognition result: {result}")
         
         # 添加标点符号
