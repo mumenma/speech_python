@@ -43,39 +43,23 @@ def add_punctuation(text: str) -> str:
     if not text.strip():
         return text
         
-    # 将文本分割成句子
-    sentences = re.split(r'([。！？])', text)
-    result = []
-    
-    for sentence in sentences:
-        if not sentence.strip():
-            continue
-            
-        # 对每个句子进行标点预测
-        inputs = tokenizer(sentence, return_tensors="pt", padding=True, truncation=True, max_length=512)
-        with torch.no_grad():
-            outputs = model(**inputs)
-            predictions = torch.argmax(outputs.logits, dim=-1)
-            
-        # 将预测结果转换为文本
-        tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
-        punctuated = []
+    # 对文本进行标点预测
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
+    with torch.no_grad():
+        outputs = model(**inputs)
+        predictions = torch.argmax(outputs.logits, dim=-1)
         
-        for token, pred in zip(tokens, predictions[0]):
-            if token not in ["[CLS]", "[SEP]", "[PAD]"]:
-                punctuated.append(token)
-                if pred == 1:  # 逗号
-                    punctuated.append("，")
-                elif pred == 2:  # 句号
-                    punctuated.append("。")
-                elif pred == 3:  # 问号
-                    punctuated.append("？")
-                elif pred == 4:  # 感叹号
-                    punctuated.append("！")
-        
-        result.append("".join(punctuated))
+    # 将预测结果转换为文本
+    tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+    punctuated = []
     
-    return "".join(result)
+    for token, pred in zip(tokens, predictions[0]):
+        if token not in ["[CLS]", "[SEP]", "[PAD]"]:
+            punctuated.append(token)
+            if pred != 0:  # 0 表示不需要添加标点
+                punctuated.append(tokenizer.convert_ids_to_tokens(pred)[0])
+    
+    return "".join(punctuated)
 
 def create_response(code: int, message: str, data: Any = None) -> Dict:
     """
