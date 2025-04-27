@@ -4,9 +4,7 @@ import tempfile
 import subprocess
 from typing import Dict, Any
 import logging
-from transformers import AutoTokenizer, AutoModelForTokenClassification
-import torch
-import re
+from paddlenlp import Taskflow
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -15,8 +13,22 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Speech Recognition API")
 
 # 初始化标点符号预测模型
-tokenizer = AutoTokenizer.from_pretrained("bert-base-chinese")
-model = AutoModelForTokenClassification.from_pretrained("bert-base-chinese")
+punctuation = Taskflow("text_punctuation")
+
+def add_punctuation(text: str) -> str:
+    """
+    使用 PaddleNLP 添加标点符号
+    """
+    if not text.strip():
+        return text
+    
+    try:
+        # 使用 PaddleNLP 的标点预测
+        result = punctuation(text)
+        return result[0] if isinstance(result, list) else result
+    except Exception as e:
+        logger.error(f"Failed to add punctuation: {str(e)}")
+        return text
 
 def asr_with_subprocess(audio_path: str) -> str:
     """
@@ -35,31 +47,6 @@ def asr_with_subprocess(audio_path: str) -> str:
     except Exception as e:
         logger.error(f"Subprocess error: {str(e)}")
         raise
-
-def add_punctuation(text: str) -> str:
-    """
-    使用 BERT 模型添加标点符号
-    """
-    if not text.strip():
-        return text
-        
-    # 对文本进行标点预测
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
-    with torch.no_grad():
-        outputs = model(**inputs)
-        predictions = torch.argmax(outputs.logits, dim=-1)
-        
-    # 将预测结果转换为文本
-    tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
-    punctuated = []
-    
-    for token, pred in zip(tokens, predictions[0]):
-        if token not in ["[CLS]", "[SEP]", "[PAD]"]:
-            punctuated.append(token)
-            if pred != 0:  # 0 表示不需要添加标点
-                punctuated.append(tokenizer.convert_ids_to_tokens(pred)[0])
-    
-    return "".join(punctuated)
 
 def create_response(code: int, message: str, data: Any = None) -> Dict:
     """
