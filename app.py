@@ -4,8 +4,9 @@ from paddlespeech.cli.text.infer import TextExecutor
 import os
 import tempfile
 import subprocess
-from typing import Dict, Any
+from typing import Dict, Any, List
 import logging
+import re
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +17,28 @@ app = FastAPI(title="Speech Recognition API")
 # 初始化 ASR 执行器和标点符号预测执行器
 asr = ASRExecutor()
 text_executor = TextExecutor()
+
+def split_text(text: str, max_length: int = 500) -> List[str]:
+    """
+    将长文本分割成较短的段落
+    """
+    # 按标点符号分割
+    segments = re.split(r'([。！？])', text)
+    result = []
+    current_segment = ""
+    
+    for segment in segments:
+        if len(current_segment) + len(segment) <= max_length:
+            current_segment += segment
+        else:
+            if current_segment:
+                result.append(current_segment)
+            current_segment = segment
+    
+    if current_segment:
+        result.append(current_segment)
+    
+    return result
 
 def asr_with_subprocess(audio_path: str) -> str:
     """
@@ -34,6 +57,27 @@ def asr_with_subprocess(audio_path: str) -> str:
     except Exception as e:
         logger.error(f"Subprocess error: {str(e)}")
         raise
+
+def add_punctuation(text: str) -> str:
+    """
+    为文本添加标点符号，处理长文本
+    """
+    # 分割文本
+    segments = split_text(text)
+    logger.info(f"Split text into {len(segments)} segments")
+    
+    # 对每段分别添加标点
+    punctuated_segments = []
+    for segment in segments:
+        try:
+            punctuated = text_executor(text=segment)
+            punctuated_segments.append(punctuated)
+        except Exception as e:
+            logger.error(f"Failed to add punctuation to segment: {str(e)}")
+            punctuated_segments.append(segment)  # 如果失败，使用原始文本
+    
+    # 合并结果
+    return "".join(punctuated_segments)
 
 def create_response(code: int, message: str, data: Any = None) -> Dict:
     """
@@ -103,7 +147,7 @@ async def recognize_speech(audio: UploadFile = File(...)):
         
         # 添加标点符号
         logger.info("Adding punctuation")
-        punctuated_text = text_executor(text=result)
+        punctuated_text = add_punctuation(result)
         logger.info(f"Punctuated text: {punctuated_text}")
         
         return create_response(
