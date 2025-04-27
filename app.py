@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Speech Recognition API")
 
 # 初始化标点符号预测模型
-model_name = "ernie-3.0-medium-zh-punc"
+model_name = "ernie-3.0-medium-zh"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForTokenClassification.from_pretrained(model_name)
 
