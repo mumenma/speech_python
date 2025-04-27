@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Speech Recognition API")
 
 # 初始化标点符号预测模型
-punctuation = Taskflow("text_punctuation")
+punctuation = Taskflow("punctuation_restoration")
 
 def add_punctuation(text: str) -> str:
     """
