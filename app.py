@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from paddlespeech.cli.asr.infer import ASRExecutor
+from paddlespeech.cli.text.infer import TextExecutor
 import os
 import tempfile
 from typing import Dict, Any
@@ -11,8 +12,9 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Speech Recognition API")
 
-# 初始化 ASR 执行器
+# 初始化 ASR 执行器和标点符号预测执行器
 asr = ASRExecutor()
+text_executor = TextExecutor()
 
 def create_response(code: int, message: str, data: Any = None) -> Dict:
     """
@@ -80,10 +82,15 @@ async def recognize_speech(audio: UploadFile = File(...)):
         result = asr(audio_file=temp_file_path, force_yes=True)
         logger.info(f"Recognition result: {result}")
         
+        # 添加标点符号
+        logger.info("Adding punctuation")
+        punctuated_text = text_executor(text=result)
+        logger.info(f"Punctuated text: {punctuated_text}")
+        
         return create_response(
             code=200,
             message="Success",
-            data={"text": result}
+            data={"text": punctuated_text}
         )
     except Exception as e:
         logger.error(f"Speech recognition failed: {str(e)}", exc_info=True)
