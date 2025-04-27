@@ -1,5 +1,4 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from paddlespeech.cli.asr.infer import ASRExecutor
 import os
 import tempfile
 import subprocess
