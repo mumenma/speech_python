@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Speech Recognition API")
 
 # 初始化标点符号预测模型
-model_name = "ernie-3.0-medium-zh"
+model_name = "ernie-3.0-medium-zh-punc"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForTokenClassification.from_pretrained(model_name)
 
@@ -40,7 +40,11 @@ def add_punctuation(text: str) -> str:
             if token not in ["[CLS]", "[SEP]", "[PAD]"]:
                 punctuated.append(token)
                 if pred != 0:  # 0 表示不需要添加标点
-                    punctuated.append(tokenizer.convert_ids_to_tokens(pred)[0])
+                    pred_value = pred.item()
+                    # 使用模型自带的标签映射
+                    label = model.config.id2label[pred_value]
+                    if label != "O":  # "O" 表示不需要添加标点
+                        punctuated.append(label)
         
         return "".join(punctuated)
     except Exception as e:
