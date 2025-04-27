@@ -1,11 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from paddlespeech.cli.asr.infer import ASRExecutor
-from paddlespeech.cli.text.infer import TextExecutor
 import os
 import tempfile
 import subprocess
-from typing import Dict, Any, List
+from typing import Dict, Any
 import logging
+from transformers import AutoTokenizer, AutoModelForTokenClassification
+import torch
 import re
 
 # 配置日志
@@ -14,45 +15,50 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Speech Recognition API")
 
-# 初始化 ASR 执行器和标点符号预测执行器
-asr = ASRExecutor()
-text_executor = TextExecutor()
+# 初始化标点符号预测模型
+tokenizer = AutoTokenizer.from_pretrained("bert-base-chinese")
+model = AutoModelForTokenClassification.from_pretrained("bert-base-chinese")
 
-def split_text(text: str, max_length: int = 300) -> List[str]:
+def add_punctuation(text: str) -> str:
     """
-    将长文本分割成较短的段落，使用更保守的分段策略
+    使用 BERT 模型添加标点符号
     """
-    # 按多种标点符号分割
-    segments = re.split(r'([。！？，；：])', text)
+    if not text.strip():
+        return text
+        
+    # 将文本分割成句子
+    sentences = re.split(r'([。！？])', text)
     result = []
-    current_segment = ""
     
-    for segment in segments:
-        # 如果当前段加上新段超过最大长度，就保存当前段并开始新段
-        if len(current_segment) + len(segment) > max_length:
-            if current_segment:
-                result.append(current_segment.strip())
-            current_segment = segment
-        else:
-            current_segment += segment
+    for sentence in sentences:
+        if not sentence.strip():
+            continue
             
-        # 如果当前段已经达到最大长度，就保存它
-        if len(current_segment) >= max_length:
-            result.append(current_segment.strip())
-            current_segment = ""
+        # 对每个句子进行标点预测
+        inputs = tokenizer(sentence, return_tensors="pt", padding=True, truncation=True, max_length=512)
+        with torch.no_grad():
+            outputs = model(**inputs)
+            predictions = torch.argmax(outputs.logits, dim=-1)
+            
+        # 将预测结果转换为文本
+        tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+        punctuated = []
+        
+        for token, pred in zip(tokens, predictions[0]):
+            if token not in ["[CLS]", "[SEP]", "[PAD]"]:
+                punctuated.append(token)
+                if pred == 1:  # 逗号
+                    punctuated.append("，")
+                elif pred == 2:  # 句号
+                    punctuated.append("。")
+                elif pred == 3:  # 问号
+                    punctuated.append("？")
+                elif pred == 4:  # 感叹号
+                    punctuated.append("！")
+        
+        result.append("".join(punctuated))
     
-    # 添加最后一个段
-    if current_segment:
-        result.append(current_segment.strip())
-    
-    # 过滤掉空段
-    result = [s for s in result if s]
-    
-    logger.info(f"Split text into {len(result)} segments")
-    for i, seg in enumerate(result):
-        logger.info(f"Segment {i+1} length: {len(seg)}")
-    
-    return result
+    return "".join(result)
 
 def asr_with_subprocess(audio_path: str) -> str:
     """
@@ -71,38 +77,6 @@ def asr_with_subprocess(audio_path: str) -> str:
     except Exception as e:
         logger.error(f"Subprocess error: {str(e)}")
         raise
-
-def add_punctuation(text: str) -> str:
-    """
-    为文本添加标点符号，处理长文本
-    """
-    if not text.strip():
-        return text
-        
-    # 分割文本
-    segments = split_text(text)
-    if not segments:
-        return text
-        
-    logger.info(f"Processing {len(segments)} segments")
-    
-    # 对每段分别添加标点
-    punctuated_segments = []
-    for i, segment in enumerate(segments):
-        try:
-            logger.info(f"Processing segment {i+1}/{len(segments)}: {segment[:50]}...")
-            punctuated = text_executor(text=segment)
-            punctuated_segments.append(punctuated)
-            logger.info(f"Successfully processed segment {i+1}")
-        except Exception as e:
-            logger.error(f"Failed to add punctuation to segment {i+1}: {str(e)}")
-            logger.error(f"Segment content: {segment}")
-            punctuated_segments.append(segment)  # 如果失败，使用原始文本
-    
-    # 合并结果
-    result = "".join(punctuated_segments)
-    logger.info(f"Final text length: {len(result)}")
-    return result
 
 def create_response(code: int, message: str, data: Any = None) -> Dict:
     """
