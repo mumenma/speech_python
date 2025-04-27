@@ -3,6 +3,7 @@ from paddlespeech.cli.asr.infer import ASRExecutor
 from paddlespeech.cli.text.infer import TextExecutor
 import os
 import tempfile
+import subprocess
 from typing import Dict, Any
 import logging
 
@@ -15,6 +16,24 @@ app = FastAPI(title="Speech Recognition API")
 # 初始化 ASR 执行器和标点符号预测执行器
 asr = ASRExecutor()
 text_executor = TextExecutor()
+
+def asr_with_subprocess(audio_path: str) -> str:
+    """
+    使用子进程调用 PaddleSpeech CLI 进行语音识别
+    """
+    try:
+        result = subprocess.run(
+            ["paddlespeech", "asr", "--input", audio_path],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode != 0:
+            logger.error(f"ASR failed: {result.stderr}")
+            raise RuntimeError(f"ASR failed: {result.stderr}")
+        return result.stdout.strip()
+    except Exception as e:
+        logger.error(f"Subprocess error: {str(e)}")
+        raise
 
 def create_response(code: int, message: str, data: Any = None) -> Dict:
     """
@@ -77,9 +96,9 @@ async def recognize_speech(audio: UploadFile = File(...)):
                 )
             )
 
-        # 执行语音识别，设置 force_yes=True 自动处理非标准采样率
+        # 使用子进程执行语音识别
         logger.info("Starting speech recognition")
-        result = asr(audio_file=temp_file_path, force_yes=True)
+        result = asr_with_subprocess(temp_file_path)
         logger.info(f"Recognition result: {result}")
         
         # 添加标点符号
