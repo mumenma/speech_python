@@ -5,7 +5,13 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     libsndfile1 \
+    wget \
     && rm -rf /var/lib/apt/lists/*
+
+# 安装 OpenSSL 1.1
+RUN wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
+    && dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
+    && rm libssl1.1_1.1.1f-1ubuntu2_amd64.deb
 
 # 设置工作目录
 WORKDIR /app

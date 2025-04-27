@@ -42,8 +42,8 @@ async def recognize_speech(audio: UploadFile = File(...)):
         temp_file_path = temp_file.name
 
     try:
-        # 执行语音识别
-        result = asr(audio_file=temp_file_path, model="deepspeech2online_wenetspeech")
+        # 执行语音识别，使用 conformer_aishell 模型
+        result = asr(audio_file=temp_file_path, model="conformer_aishell")
         return create_response(
             code=200,
             message="Success",
