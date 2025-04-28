@@ -39,12 +39,23 @@ def add_punctuation(text: str) -> str:
         for token, pred in zip(tokens, predictions[0]):
             if token not in ["[CLS]", "[SEP]", "[PAD]"]:
                 punctuated.append(token)
-                if pred != 0:  # 0 表示不需要添加标点
-                    pred_value = pred.item()
-                    # 使用模型自带的标签映射
-                    label = model.config.id2label[pred_value]
-                    if label != "O":  # "O" 表示不需要添加标点
-                        punctuated.append(label)
+                pred_value = pred.item()
+                # 使用模型自带的标签映射
+                label = model.config.id2label[pred_value]
+                if label != "O":  # "O" 表示不需要添加标点
+                    # 支持多种标签格式
+                    if any(comma in label for comma in ["COMMA", "逗号", "，"]):
+                        punctuated.append("，")
+                    elif any(period in label for period in ["PERIOD", "句号", "。"]):
+                        punctuated.append("。")
+                    elif any(question in label for question in ["QUESTION", "问号", "？"]):
+                        punctuated.append("？")
+                    elif any(exclamation in label for exclamation in ["EXCLAMATION", "感叹号", "！"]):
+                        punctuated.append("！")
+                    elif any(colon in label for colon in ["COLON", "冒号", "："]):
+                        punctuated.append("：")
+                    elif any(semicolon in label for semicolon in ["SEMICOLON", "分号", "；"]):
+                        punctuated.append("；")
         
         return "".join(punctuated)
     except Exception as e:
