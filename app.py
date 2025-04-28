@@ -67,17 +67,35 @@ def asr_with_subprocess(audio_path: str) -> str:
     使用子进程调用 PaddleSpeech CLI 进行语音识别
     """
     try:
+        # 添加环境变量，确保模型下载路径正确
+        env = os.environ.copy()
+        env["PADDLESPEECH_HOME"] = os.path.expanduser("~/.paddlespeech")
+        
+        # 使用 -v 参数获取更详细的输出
         result = subprocess.run(
-            ["paddlespeech", "asr", "--input", audio_path],
+            ["paddlespeech", "asr", "--input", audio_path, "-v"],
             capture_output=True,
-            text=True
+            text=True,
+            env=env
         )
+        
         if result.returncode != 0:
-            logger.error(f"ASR failed: {result.stderr}")
-            raise RuntimeError(f"ASR failed: {result.stderr}")
+            error_msg = result.stderr.strip()
+            logger.error(f"ASR failed with error: {error_msg}")
+            
+            # 检查是否是模型下载问题
+            if "download" in error_msg.lower() or "model" in error_msg.lower():
+                logger.error("Model download failed. Please check your internet connection and try again.")
+                raise RuntimeError("Model download failed. Please check your internet connection and try again.")
+            
+            raise RuntimeError(f"ASR failed: {error_msg}")
+            
         return result.stdout.strip()
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
         logger.error(f"Subprocess error: {str(e)}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during ASR: {str(e)}")
         raise
 
 def create_response(code: int, message: str, data: Any = None) -> Dict:
