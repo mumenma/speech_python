@@ -137,3 +137,6 @@ pip freeze > requirements.txt
 # 退出虚拟环境
 deactivate
 ``` 
+
+# 执行
+source venv/bin/activate && uvicorn app:app --reload --host 0.0.0.0 --port 8011
