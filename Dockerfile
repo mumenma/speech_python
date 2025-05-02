@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# 设置 pip 镜像源
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
 # 复制依赖文件
 COPY requirements.txt .
 
@@ -21,11 +24,6 @@ RUN python -m pip install --upgrade pip \
 
 # 复制应用代码
 COPY . .
-
-# 设置环境变量
-ENV PYTHONUNBUFFERED=1
-ENV MODELSCOPE_CACHE=/app/.cache/modelscope
-ENV MODELSCOPE_HUB=https://modelscope.oss-cn-beijing.aliyuncs.com
 
 # 创建缓存目录
 RUN mkdir -p /app/.cache/modelscope
