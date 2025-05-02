@@ -78,12 +78,5 @@ pytest
 # speech_python
 语音相关服务，通过fastapi进行封装
 
-所使用的开源模型：https://github.com/PaddlePaddle/PaddleSpeech/blob/develop/README_cn.md
-
-# 安装所需要的库
-
-pip install paddlepaddle -i https://mirror.baidu.com/pypi/simple
-pip install pytest-runner
-pip install paddlespeech
-
-
+所使用的开源模型：
+https://github.com/FunAudioLLM/SenseVoice
