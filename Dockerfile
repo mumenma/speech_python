@@ -12,9 +12,6 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# 设置 pip 镜像源
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-
 # 复制依赖文件
 COPY requirements.txt .
 
