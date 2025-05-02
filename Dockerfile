@@ -12,11 +12,6 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 OpenSSL 1.1
-RUN wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
-    && dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
-    && rm libssl1.1_1.1.1f-1ubuntu2_amd64.deb
-
 # 复制依赖文件
 COPY requirements.txt .
 
@@ -24,15 +19,16 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip \
     && python -m pip install -r requirements.txt
 
-# 安装 CPU 版本的 PaddlePaddle
-RUN python -m pip install --no-cache-dir paddlepaddle==2.5.2
-
 # 复制应用代码
 COPY . .
 
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1
-ENV PADDLESPEECH_HOME=/app/.paddlespeech
+ENV MODELSCOPE_CACHE=/app/.cache/modelscope
+ENV MODELSCOPE_HUB=https://modelscope.oss-cn-beijing.aliyuncs.com
+
+# 创建缓存目录
+RUN mkdir -p /app/.cache/modelscope
 
 # 创建非 root 用户
 RUN useradd -m appuser && chown -R appuser:appuser /app
@@ -42,4 +38,4 @@ USER appuser
 EXPOSE 8011
 
 # 启动应用
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8011"] 
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8011"]
