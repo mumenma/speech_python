@@ -6,6 +6,7 @@ os.environ["MODELSCOPE_HUB"] = "https://modelscope.oss-cn-beijing.aliyuncs.com"
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
 import tempfile
@@ -62,9 +63,26 @@ async def recognize_audio(file: UploadFile = File(...)):
         # 删除临时文件
         os.unlink(temp_file_path)
         
-        return {"text": text}
+        return JSONResponse(
+            status_code=200,
+            content={
+                "code": 0,
+                "message": "success",
+                "data": {
+                    "text": text
+                }
+            }
+        )
+        
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": 1,
+                "message": str(e),
+                "data": None
+            }
+        )
 
 @app.get("/health")
 async def health_check():
