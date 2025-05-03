@@ -1,4 +1,5 @@
 import os
+import re
 
 # 设置环境变量
 os.environ["MODELSCOPE_CACHE"] = os.path.expanduser("~/.cache/modelscope")
@@ -33,6 +34,19 @@ model = AutoModel(
     device="cpu",  # 使用 CPU
 )
 
+def clean_text(text: str) -> str:
+    """清理文本中的表情符号和重复标点"""
+    # 移除表情符号
+    text = re.sub(r'[\U00010000-\U0010ffff]', '', text)
+    # 处理重复的标点符号
+    text = re.sub(r'。{2,}', '。', text)
+    text = re.sub(r'，{2,}', '，', text)
+    text = re.sub(r'！{2,}', '！', text)
+    text = re.sub(r'？{2,}', '？', text)
+    # 移除多余的空格
+    text = ' '.join(text.split())
+    return text.strip()
+
 def asr_with_sensevoice(audio_path: str) -> str:
     """使用SenseVoice进行语音识别"""
     res = model.generate(
@@ -42,10 +56,10 @@ def asr_with_sensevoice(audio_path: str) -> str:
         use_itn=True,
         batch_size_s=60,
         merge_vad=True,
-        merge_length_s=15,
+        merge_length_s=15
     )
     text = rich_transcription_postprocess(res[0]["text"])
-    return text
+    return clean_text(text)
 
 @app.post("/recognize")
 async def recognize_audio(file: UploadFile = File(...)):
