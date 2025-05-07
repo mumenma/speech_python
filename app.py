@@ -1,17 +1,11 @@
-import os
 import re
 from moviepy.editor import VideoFileClip
-
-# 设置环境变量
-os.environ["MODELSCOPE_CACHE"] = os.path.expanduser("~/.cache/modelscope")
-os.environ["MODELSCOPE_HUB"] = "https://modelscope.oss-cn-beijing.aliyuncs.com"
-
+from temp_file_handler import TempFileHandler
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
-import tempfile
 
 app = FastAPI()
 
@@ -70,27 +64,27 @@ def convert_mp4_to_wav(mp4_path: str) -> str:
     video.close()
     return wav_path
 
+# 修改 /recognize 接口
 @app.post("/recognize")
 async def recognize_audio(file: UploadFile = File(...)):
     """接收音频文件并进行语音识别"""
+    handler = TempFileHandler()
     try:
         # 创建临时文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file.filename.split('.')[-1]) as temp_file:
+        with handler.create_temp_file(suffix=file.filename.split('.')[-1]) as temp_file_path:
             content = await file.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
+            with open(temp_file_path, 'wb') as f:
+                f.write(content)
 
-        # 如果是MP4文件，先转换为WAV
-        if file.filename.lower().endswith('.mp4'):
-            temp_file_path = convert_mp4_to_wav(temp_file_path)
+            # 如果是MP4文件，先转换为WAV
+            if file.filename.lower().endswith('.mp4'):
+                temp_file_path = convert_mp4_to_wav(temp_file_path)
 
-        # 进行语音识别
-        text = asr_with_sensevoice(temp_file_path)
-        
-        # 删除临时文件
-        os.unlink(temp_file_path)
-        if file.filename.lower().endswith('.mp4'):
-            os.unlink(temp_file_path.replace('.mp4', '.wav'))
+            # 进行语音识别
+            text = asr_with_sensevoice(temp_file_path)
+
+            # 删除临时文件
+            handler.delete_file(temp_file_path)
         
         return JSONResponse(
             status_code=200,
@@ -104,6 +98,7 @@ async def recognize_audio(file: UploadFile = File(...)):
         )
         
     except Exception as e:
+        handler.cleanup()
         return JSONResponse(
             status_code=500,
             content={
@@ -113,6 +108,7 @@ async def recognize_audio(file: UploadFile = File(...)):
             }
         )
 
+# 修改 /recognize_mp4 接口
 @app.post("/recognize_mp4")
 async def recognize_mp4(file: UploadFile = File(...)):
     """接收MP4视频文件并进行语音识别"""
@@ -126,22 +122,24 @@ async def recognize_mp4(file: UploadFile = File(...)):
             }
         )
     
+    handler = TempFileHandler()
     try:
         # 创建临时文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+        with handler.create_temp_file(suffix='.mp4') as temp_file_path:
             content = await file.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
+            with open(temp_file_path, 'wb') as f:
+                f.write(content)
 
-        # 转换为WAV格式
-        wav_path = convert_mp4_to_wav(temp_file_path)
-        
-        # 进行语音识别
-        text = asr_with_sensevoice(wav_path)
-        
-        # 删除临时文件
-        os.unlink(temp_file_path)
-        os.unlink(wav_path)
+            # 转换为WAV格式
+            wav_path = convert_mp4_to_wav(temp_file_path)
+            handler.temp_files.append(wav_path)  # 将wav_path添加到缓存列表
+            
+            # 进行语音识别
+            text = asr_with_sensevoice(wav_path)
+
+            # 删除临时文件
+            handler.delete_file(temp_file_path)
+            handler.delete_file(wav_path)
         
         return JSONResponse(
             status_code=200,
@@ -155,18 +153,7 @@ async def recognize_mp4(file: UploadFile = File(...)):
         )
         
     except Exception as e:
-        # 确保清理所有临时文件
-        if 'temp_file_path' in locals():
-            try:
-                os.unlink(temp_file_path)
-            except:
-                pass
-        if 'wav_path' in locals():
-            try:
-                os.unlink(wav_path)
-            except:
-                pass
-                
+        handler.cleanup()
         return JSONResponse(
             status_code=500,
             content={
@@ -175,7 +162,6 @@ async def recognize_mp4(file: UploadFile = File(...)):
                 "data": None
             }
         )
-
 @app.get("/health")
 async def health_check():
     """健康检查接口"""
