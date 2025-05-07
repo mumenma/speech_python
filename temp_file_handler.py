@@ -4,13 +4,15 @@ from contextlib import contextmanager
 from typing import Generator, Optional
 
 class TempFileHandler:
-    def __init__(self):
+    def __init__(self, cache_dir: str = None):
         self.temp_files = []
+        self.cache_dir = cache_dir or os.path.join(tempfile.gettempdir(), 'temp_cache')
+        os.makedirs(self.cache_dir, exist_ok=True)
 
     @contextmanager
     def create_temp_file(self, suffix: str) -> Generator[str, None, None]:
-        """Create a temporary file with the given suffix."""
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        """Create a temporary file with the given suffix in the cache directory."""
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=self.cache_dir)
         self.temp_files.append(temp_file.name)
         try:
             yield temp_file.name

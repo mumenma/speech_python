@@ -98,7 +98,6 @@ async def recognize_audio(file: UploadFile = File(...)):
         )
         
     except Exception as e:
-        handler.cleanup()
         return JSONResponse(
             status_code=500,
             content={
@@ -153,7 +152,6 @@ async def recognize_mp4(file: UploadFile = File(...)):
         )
         
     except Exception as e:
-        handler.cleanup()
         return JSONResponse(
             status_code=500,
             content={
