@@ -1,5 +1,6 @@
 import os
 import re
+from moviepy.editor import VideoFileClip
 
 # 设置环境变量
 os.environ["MODELSCOPE_CACHE"] = os.path.expanduser("~/.cache/modelscope")
@@ -61,21 +62,35 @@ def asr_with_sensevoice(audio_path: str) -> str:
     text = rich_transcription_postprocess(res[0]["text"])
     return clean_text(text)
 
+def convert_mp4_to_wav(mp4_path: str) -> str:
+    """将MP4文件转换为WAV格式"""
+    wav_path = mp4_path.replace('.mp4', '.wav')
+    video = VideoFileClip(mp4_path)
+    video.audio.write_audiofile(wav_path)
+    video.close()
+    return wav_path
+
 @app.post("/recognize")
 async def recognize_audio(file: UploadFile = File(...)):
     """接收音频文件并进行语音识别"""
     try:
         # 创建临时文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file.filename.split('.')[-1]) as temp_file:
             content = await file.read()
             temp_file.write(content)
             temp_file_path = temp_file.name
+
+        # 如果是MP4文件，先转换为WAV
+        if file.filename.lower().endswith('.mp4'):
+            temp_file_path = convert_mp4_to_wav(temp_file_path)
 
         # 进行语音识别
         text = asr_with_sensevoice(temp_file_path)
         
         # 删除临时文件
         os.unlink(temp_file_path)
+        if file.filename.lower().endswith('.mp4'):
+            os.unlink(temp_file_path.replace('.mp4', '.wav'))
         
         return JSONResponse(
             status_code=200,
@@ -89,6 +104,69 @@ async def recognize_audio(file: UploadFile = File(...)):
         )
         
     except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": 1,
+                "message": str(e),
+                "data": None
+            }
+        )
+
+@app.post("/recognize_mp4")
+async def recognize_mp4(file: UploadFile = File(...)):
+    """接收MP4视频文件并进行语音识别"""
+    if not file.filename.lower().endswith('.mp4'):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "code": 1,
+                "message": "Only MP4 files are supported",
+                "data": None
+            }
+        )
+    
+    try:
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+
+        # 转换为WAV格式
+        wav_path = convert_mp4_to_wav(temp_file_path)
+        
+        # 进行语音识别
+        text = asr_with_sensevoice(wav_path)
+        
+        # 删除临时文件
+        os.unlink(temp_file_path)
+        os.unlink(wav_path)
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "code": 0,
+                "message": "success",
+                "data": {
+                    "text": text
+                }
+            }
+        )
+        
+    except Exception as e:
+        # 确保清理所有临时文件
+        if 'temp_file_path' in locals():
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+        if 'wav_path' in locals():
+            try:
+                os.unlink(wav_path)
+            except:
+                pass
+                
         return JSONResponse(
             status_code=500,
             content={

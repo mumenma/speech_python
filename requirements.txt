@@ -8,3 +8,4 @@ funasr==1.2.6
 funasr-onnx==0.4.1
 librosa==0.8.1
 numpy==1.22.4
+moviepy==1.0.3
