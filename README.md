@@ -17,6 +17,10 @@ pip install -r requirements.txt
 
 2. 启动服务：
 ```bash
+
+python -m uvicorn app:app --reload --host 0.0.0.0 --port 8011
+
+
 uvicorn app:app --host 0.0.0.0 --port 8011
 ```
 
